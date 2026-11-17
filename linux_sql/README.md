@@ -1,7 +1,7 @@
 # Linux Cluster Monitoring Agent
 ## Introduction
 
-This project is a monitoring agent for a cluster of Linux servers. This program will be installed on each of the servers to gather both hardware specifications and resource usage data and then persist that data into a psql instance. Each host runs two bash scripts: 
+This project is a monitoring agent for a cluster of Linux servers. This program will be installed on each of the servers to gather both hardware specifications and resource usage data and then persist that data into a PostgreSQL instance. Each host runs two bash scripts: 
 - host_info.sh: Records the machine's hardware specifications once.
 
 - host_usage.sh: Captures server usage data. It is triggered by cron every minute.
@@ -38,7 +38,7 @@ To collect usage every minute, open your crontab with `crontab -e` and add a lin
 ```
 
 ## Implementation
-I built the project in small steps, each on its own feature branch (feature/psql_docker, feature/rdbms_ddl, feature/monitoring_agent) and the then merged into develop when it was done.
+I built the project in small steps, each on its own feature branch (feature/psql_docker, feature/rdbms_ddl, feature/monitoring_agent), and then merged into develop when it was done.
 
 ## Architecture
 
@@ -60,7 +60,7 @@ I built the project in small steps, each on its own feature branch (feature/psql
 ./scripts/host_info.sh <psql_host> <psql_port> <db_name> <psql_user> <psql_password>
 ```
  
-**`host_usage.sh`**: takes one `vmstat` snapshot (in MB) so that all values come from the same moment. The host's id is resolved inside the `INSERT` with a subquery on `hostname`, so the script never needs to know the numeric id.
+**`host_usage.sh`**: takes one `vmstat` snapshot (in MB) so that all values come from the same moment. The host's ID is resolved inside the `INSERT` with a subquery on `hostname`, so the script never needs to know the numeric ID.
 ```bash
 ./scripts/host_usage.sh <psql_host> <psql_port> <db_name> <psql_user> <psql_password>
 ```
@@ -101,14 +101,14 @@ I built the project in small steps, each on its own feature branch (feature/psql
 ## Test
 Each feature was tested manually on a Rocky Linux VM:
 - **DDL:** ran `ddl.sql` against `host_agent` and confirmed both tables with `SELECT * FROM host_info (host_usage)`. Inserted sample rows to verify constraints.
-- **`host_info.sh`:** returned `INSERT 0 1`, and the row matched `lscpu` output. A second run was correctly rejected by the unique constraint on `hostname`. Testing also showed that sample rows inserted with hard-coded ids had left the id sequence behind; resetting it with `setval` fixed that.
-- **`host_usage.sh`:** before the host was registered, the insert failed on the `NOT NULL` `host_id`, which confirmed the subquery link works as intended. After registration it returned `INSERT 0 1`.
+- **`host_info.sh`:** returned `INSERT 0 1`, and the row matched `lscpu` output. A second run was correctly rejected by the unique constraint on `hostname`. Testing also showed that sample rows inserted with hard-coded IDs had left the ID sequence behind; resetting it with `setval` fixed that.
+- **`host_usage.sh`:** before the host was registered, the insert failed on the `NOT NULL` `host_id`, which confirmed the subquery link works as intended. After registration, it returned `INSERT 0 1`.
 - **Cron:** checked `/tmp/host_usage.log` per minute and confirmed new rows in `host_usage`.
 - **Debugging:** used `bash -x` to trace variable values and print the final SQL before it was sent.
 
 ## Deployment
 - **Docker** hosts PSQL in an isolated container, with a named volume so data persists across restarts.
-- **cron** runs the usage agent every minute.
+- **Cron** runs the usage agent every minute.
 - **GitHub** stores the source. Each feature was developed on its own `feature/*` branch and merged into `develop`, with `main` reserved for releases (will be reviewed by Senior Technical Instructor).
 
 ## Improvements
