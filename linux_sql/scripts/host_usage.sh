@@ -15,10 +15,10 @@ fi
 vmstat_mb=$(vmstat --unit M)
 hostname=$(hostname -f)
 
-memory_free=$(echo "$vmstat_mb" | awk '{print $4}' | tail -n1 | xargs)
+memory_free=$(vmstat --unit M | tail -1 | awk -v col="4" '{print $col}')
 cpu_idle=$(echo "$vmstat_mb" | awk '{print $15}' | tail -n1 | xargs)
 cpu_kernel=$(echo "$vmstat_mb" | awk '{print $14}' | tail -n1 | xargs)
-disk_io=$(vmstat -d | awk '{print $10}' | tail -n1 | xargs)
+disk_io=$(vmstat --unit M -d | tail -1 | awk -v col="10" '{print $col}')
 disk_available=$(df -BM / | awk '{print $4}' | tail -n1 | tr -d 'M' | xargs)
 timestamp=$(TZ=UTC vmstat -t | tail -n1 | awk '{print $18, $19}')
 
