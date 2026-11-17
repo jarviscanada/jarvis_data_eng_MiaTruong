@@ -22,20 +22,25 @@ Tech stack: Bash, Docker, PostgreSQL, cron, and Git/GitHub with feature branches
 psql -h localhost -U postgres -c "CREATE DATABASE host_agent;"
 psql -h localhost -U postgres -d host_agent -f sql/ddl.sql
  
-# 3. Register this machine's hardware specs (run once per host)
+# 3. Register this machine's hardware specifications
 ./scripts/host_info.sh localhost 5432 host_agent postgres password
  
-# 4. Record a usage snapshot (manual test)
+# 4. Record a usage snapshot
 ./scripts/host_usage.sh localhost 5432 host_agent postgres password
  
-# 5. Schedule usage collection every minute
+# 5. Schedule every minute
 crontab -e
 # add this line:
 * * * * * bash /home/rocky/dev/jarvis_data_eng_MiaTruong/linux_sql/scripts/host_usage.sh localhost 5432 host_agent postgres password >> /tmp/host_usage.log 2>&1
 ```
 
 ## Implementation
-The work was split into small feature branches (`feature/psql_docker`, `feature/rdbms_ddl`, `feature/monitoring_agent`) that were merged into `develop`. First, a helper script provisions a PostgreSQL container backed by a named Docker volume so data survives container restarts. Next, the schema was defined in `ddl.sql`. Finally, the two agent scripts were written: each one gathers values with standard Linux tools, trims them with `awk`/`xargs`, builds a single `INSERT` statement, and sends it to the database through the `psql` CLI.
+I built the project in small steps, each on its own feature branch (feature/psql_docker, feature/rdbms_ddl, feature/monitoring_agent) and the then merged into develop when it was done.
+
+Database: A  script sets up PostgreSQL in Docker. ddl.sql creates the two tables.
+
+Agent: 2 scripts follow the same pattern: collect values with standard Linux tools, clean data, use INSERT statement, and send it to the datatebase with psql.
+
 
 ### Scripts
  
@@ -56,12 +61,13 @@ The work was split into small feature branches (`feature/psql_docker`, `feature/
 ./scripts/host_usage.sh <psql_host> <psql_port> <db_name> <psql_user> <psql_password>
 ```
   
-**crontab**: runs `host_usage.sh` once a minute and appends both output and errors to a log file for troubleshooting.
+**crontab**: runs `host_usage.sh` once a minute and add output to a log file.
 ```bash
 * * * * * bash /path/to/linux_sql/scripts/host_usage.sh localhost 5432 host_agent postgres password >> /tmp/host_usage.log 2>&1
 ```
- 
-**`queries.sql`**:
+
+## Architecture
+![Cluster architecture](./assets/architecture_v2.png)
 
 ### Database Modeling
  
@@ -71,20 +77,20 @@ The work was split into small feature branches (`feature/psql_docker`, `feature/
 |---|---|---|
 | `id` | SERIAL, primary key | Auto-generated host identifier |
 | `hostname` | VARCHAR, unique | Fully qualified hostname |
-| `cpu_number` | INT2 | Number of logical CPUs |
+| `cpu_number` | INT2 | Number of CPUs |
 | `cpu_architecture` | VARCHAR | e.g. `x86_64` |
-| `cpu_model` | VARCHAR | CPU model name |
+| `cpu_model` | VARCHAR | CPU model |
 | `cpu_mhz` | FLOAT8 | Clock speed in MHz |
 | `l2_cache` | INT4 | L2 cache size in kB |
-| `timestamp` | TIMESTAMP | When the host was registered (UTC) |
+| `timestamp` | TIMESTAMP | Current time (UTC) |
 | `total_mem` | INT4 | Total RAM in kB |
  
 **`host_usage`**: one row per host per minute
  
 | Column | Type | Description |
 |---|---|---|
-| `timestamp` | TIMESTAMP | When the snapshot was taken (UTC) |
-| `host_id` | SERIAL, foreign key → `host_info.id` | Host that produced the row |
+| `timestamp` | TIMESTAMP | Time of the snapshot was taken (UTC) |
+| `host_id` | SERIAL, foreign key → `host_info.id` |
 | `memory_free` | INT4 | Free memory in MB |
 | `cpu_idle` | INT2 | CPU idle time (%) |
 | `cpu_kernel` | INT2 | CPU time spent in kernel mode (%) |
@@ -92,12 +98,11 @@ The work was split into small feature branches (`feature/psql_docker`, `feature/
 | `disk_available` | INT4 | Free space on the root filesystem in MB |
  
 ## Test
-Each piece was tested manually on a Rocky Linux VM:
-- **DDL:** ran `ddl.sql` against `host_agent` and confirmed both tables with `\dt` and `\d`. Inserted sample rows to verify constraints.
-- **Argument validation:** running either script with the wrong number of arguments prints `Illegal number of parameters` and exits with status 1.
+Each feature was tested manually on a Rocky Linux VM:
+- **DDL:** ran `ddl.sql` against `host_agent` and confirmed both tables with `SELECT * FROM host_info (host_usage)`. Inserted sample rows to verify constraints.
 - **`host_info.sh`:** returned `INSERT 0 1`, and the row matched `lscpu` output. A second run was correctly rejected by the unique constraint on `hostname`. Testing also showed that sample rows inserted with hard-coded ids had left the id sequence behind; resetting it with `setval` fixed that.
 - **`host_usage.sh`:** before the host was registered, the insert failed on the `NOT NULL` `host_id`, which confirmed the subquery link works as intended. After registration it returned `INSERT 0 1`.
-- **Cron:** checked `/tmp/host_usage.log` per minute and confirmed new rows in `host_usage` arriving about one minute apart.
+- **Cron:** checked `/tmp/host_usage.log` per minute and confirmed new rows in `host_usage`.
 - **Debugging:** used `bash -x` to trace variable values and print the final SQL before it was sent.
   
 ## Deployment
