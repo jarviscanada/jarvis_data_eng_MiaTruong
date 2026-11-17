@@ -20,7 +20,7 @@ cpu_architecture=$(echo "$lscpu_out" | grep -E "^Architecture:" | awk '{print $2
 cpu_model=$(echo "$lscpu_out" | grep -E "^Model name:" | awk -F: '{print $2}' | xargs)
 cpu_mhz=$(echo "$lscpu_out" | grep "^\s*Model name:" | awk '{printf "%.3f\n", $NF * 1000}')
 l2_cache=$(echo "$lscpu_out" | grep -E "^L2 cache:" | awk '{print $3}' | tr -dc '0-9')
-total_mem=$(echo "$lscpu_out" | grep -E "^\s*L[0-9][a-z]?( cache)?:" | awk -F: '{split($2,a," "); v=a[1]; if(a[2]=="MiB") v*=1024; t+=v} END{print t}')
+total_mem= $(vmstat --unit M | tail -1 | awk '{print $4}')
 
 timestamp=$(TZ=UTC vmstat -t | tail -n1 | awk '{print $18, $19}')
 
