@@ -67,7 +67,7 @@ Agent: 2 scripts follow the same pattern: collect values with standard Linux too
 ```
 
 ## Architecture
-![Cluster architecture](./assets/architecture_v2.png)
+![Cluster architecture](./assets/architecture.drawio.png)
 
 ### Database Modeling
  
